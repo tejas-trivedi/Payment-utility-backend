@@ -10,8 +10,6 @@ from .serializers import OrderSerializer
 
 env = environ.Env()
 
-# you have to create .env file in same folder where you are using environ.Env()
-# reading .env file which located in api folder
 environ.Env.read_env()
 
 
