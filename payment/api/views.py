@@ -18,19 +18,23 @@ def start_payment(request):
     # request.data is coming from frontend
     amount = request.data['amount']
     name = request.data['name']
+    bank_account = request.data['bank_account']
 
-    # setup razorpay client
     client = razorpay.Client(auth=(env('PUBLIC_KEY'), env('SECRET_KEY')))
 
     # create razorpay order
     payment = client.order.create({"amount": int(amount) * 100,
                                    "currency": "INR",
-                                   "payment_capture": "1"})
+                                   "payment_capture": "1",
+                                   #"method": "netbanking",
+                                   "bank_account": bank_account,
+                                   })
 
-    # we are saving an order with isPaid=False
     order = Order.objects.create(order_product=name,
                                  order_amount=amount,
-                                 order_payment_id=payment['id'])
+                                 order_payment_id=payment['id'],
+                                 bank_account = bank_account,
+                                 )
 
     serializer = OrderSerializer(order)
 
@@ -70,7 +74,6 @@ def handle_payment_success(request):
     raz_pay_id = ""
     raz_signature = ""
 
-    # res.keys() will give us list of keys in res
     for key in res.keys():
         if key == 'razorpay_order_id':
             ord_id = res[key]
@@ -79,7 +82,6 @@ def handle_payment_success(request):
         elif key == 'razorpay_signature':
             raz_signature = res[key]
 
-    # get order by payment_id which we've created earlier with isPaid=False
     order = Order.objects.get(order_payment_id=ord_id)
 
     data = {
@@ -93,16 +95,18 @@ def handle_payment_success(request):
     # checking if the transaction is valid or not if it is "valid" then check will return None
     check = client.utility.verify_payment_signature(data)
 
+
     if check is not None:
         print("Redirect to error url or error page")
         return Response({'error': 'Something went wrong'})
 
-    # if payment is successful that means check is None then we will turn isPaid=True
-    order.isPaid = True
-    order.save()
+    else:
+        order.isPaid = True
+        order.save()
+        res_data = {
+            'message': 'payment successfully received!'
+        }
 
-    res_data = {
-        'message': 'payment successfully received!'
-    }
+        return Response(res_data)
 
-    return Response(res_data)
+    return Response("default")
